@@ -1,6 +1,10 @@
-#include <windows.h>
 
+//include custom headers
 #include "baseWindow.h"
+#include "Renderer.h"
+
+
+
 
 //template for releasing items
 template <class T> void SafeRelease(T** ppT)
@@ -23,6 +27,7 @@ public:
 //windows entry point
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow)
 {
+    
     MainWindow win;
 
     if (!win.Create(L"Main Window", WS_OVERLAPPEDWINDOW))
@@ -31,17 +36,19 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
     }
 
     ShowWindow(win.Window(), nCmdShow);
-
+    
+    OutputDebugStringW(L"test\n");
+	
     // Run the message loop.
-
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
+    
     return 0;
+	
 }
 
 //message handling

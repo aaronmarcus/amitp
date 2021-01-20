@@ -1,3 +1,8 @@
+#pragma once
+
+//windows header
+#include <windows.h>
+
 template <class DERIVED_TYPE>
 class BaseWindow
 {
