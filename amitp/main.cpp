@@ -16,13 +16,13 @@ template <class T> void SafeRelease(T** ppT)
     }
 }
 
+//main window class
 class MainWindow : public BaseWindow<MainWindow>
 {
 public:
     PCWSTR  ClassName() const { return L"Sample Window Class"; }
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
 };
-
 
 //windows entry point
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow)
@@ -35,9 +35,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
         return 0;
     }
 
-    ShowWindow(win.Window(), nCmdShow);
-    
-    OutputDebugStringW(L"test\n");
+    Renderer renderer(1920, 1080, 10, win.Window());
+
+	ShowWindow(win.Window(), nCmdShow);
+	
 	
     // Run the message loop.
     MSG msg = { };
