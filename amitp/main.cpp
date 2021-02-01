@@ -1,5 +1,5 @@
 
-//include custom headers
+//include project header files
 #include "baseWindow.h"
 #include "Renderer.h"
 
@@ -28,16 +28,19 @@ public:
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow)
 {
     
-    MainWindow win;
+    MainWindow CMainWin;
 
-    if (!win.Create(L"Main Window", WS_OVERLAPPEDWINDOW))
+    if (!CMainWin.Create(L"Main Window", WS_OVERLAPPEDWINDOW))
     {
         return 0;
     }
 
-    Renderer renderer(1920, 1080, 10, win.Window());
+    ShowWindow(CMainWin.Window(), nCmdShow);
+	
+	//TODO run the renderer in a new thread
+    Renderer renderer(1920, 1080, 10, CMainWin.Window());
 
-	ShowWindow(win.Window(), nCmdShow);
+	
 	
 	
     // Run the message loop.

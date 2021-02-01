@@ -1,7 +1,6 @@
 #pragma once
 
-//windows header
-#include <windows.h>
+#include "commonTools.h"
 
 template <class DERIVED_TYPE>
 class BaseWindow
