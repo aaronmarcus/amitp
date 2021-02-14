@@ -2,7 +2,7 @@
 
 HRESULT GetVideoSourceFromFile(LPCWSTR path, IMFMediaSource** ppVideoSource, IMFSourceReader** ppVideoReader);
 HRESULT CopyAttribute(IMFAttributes* pSrc, IMFAttributes* pDest, const GUID& key);
-#define MEDIA_FILE_PATH L"C:\\Users\\aaron\\OneDrive - University of Derby\\Year 3\\Independant Technology Project\\Main Project\\Test video\\fps_counter_yuv420p.yuv"
+#define MEDIA_FILE_PATH L"C:\\Users\\aaron\\OneDrive - University of Derby\\Year 3\\Independant Technology Project\\Main Project\\Test video\\fps_counter.mp4"
 
 //Renderer Constructor
 Renderer::Renderer(unsigned __int32 m_width, unsigned __int32 m_height, unsigned __int32 m_bitDepth, HWND m_hwnd)
@@ -208,12 +208,12 @@ Renderer::Renderer(unsigned __int32 m_width, unsigned __int32 m_height, unsigned
         }
         if (flags & MF_SOURCE_READERF_STREAMTICK)
         {
-            printf("Stream tick.\n");
+            OutputDebugStringW(L"Stream tick.\n");
         }
 
         if (!videoSample)
         {
-            printf("Null video sample.\n");
+            OutputDebugStringW(L"Null video sample.\n");
         }
         else
         {

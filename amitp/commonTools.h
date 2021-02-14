@@ -2,7 +2,8 @@
 
 #include <Windows.h>
 
-//refactor CHECK_HR to CheckHR
+//TODO refactor CHECK_HR to CheckHR
+//TODO change this for an inline function
 #define CHECK_HR(hr, msg) if (hr != S_OK) { OutputDebugStringW(msg); goto done; }
 
 
