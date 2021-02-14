@@ -1,3 +1,7 @@
+#pragma once
+
+#include "commonTools.h"
+
 template <class DERIVED_TYPE>
 class BaseWindow
 {

@@ -1,6 +1,10 @@
-#include <windows.h>
 
+//include project header files
 #include "baseWindow.h"
+#include "Renderer.h"
+
+
+
 
 //template for releasing items
 template <class T> void SafeRelease(T** ppT)
@@ -12,6 +16,7 @@ template <class T> void SafeRelease(T** ppT)
     }
 }
 
+//main window class
 class MainWindow : public BaseWindow<MainWindow>
 {
 public:
@@ -19,29 +24,35 @@ public:
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
 };
 
-
 //windows entry point
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow)
 {
-    MainWindow win;
+    
+    MainWindow CMainWin;
 
-    if (!win.Create(L"Main Window", WS_OVERLAPPEDWINDOW))
+    if (!CMainWin.Create(L"Main Window", WS_OVERLAPPEDWINDOW))
     {
         return 0;
     }
 
-    ShowWindow(win.Window(), nCmdShow);
+    ShowWindow(CMainWin.Window(), nCmdShow);
+	
+	//TODO run the renderer in a new thread
+    Renderer renderer(1920, 1080, 10, CMainWin.Window());
 
+	
+	
+	
     // Run the message loop.
-
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
+    
     return 0;
+	
 }
 
 //message handling
