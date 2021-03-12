@@ -1,11 +1,12 @@
 ﻿#pragma once
 
-#include <Windows.h>
+#ifndef COMMON_TOOLS_H
+#define COMMON_TOOLS_H
+
+#include <cstddef>
 
 //TODO refactor CHECK_HR to CheckHR
-//TODO change this for an inline function
 #define CHECK_HR(hr, msg) if (hr != S_OK) { OutputDebugStringW(msg); goto done; }
-
 
 //TODO refactor SAFE_RELEASE too SafeRelease
 template <class T> void SAFE_RELEASE(T * *ppT)
@@ -25,4 +26,7 @@ template <class T> inline void SAFE_RELEASE(T * &pT)
         pT = NULL;
     }
 }
+
+#endif
+
 

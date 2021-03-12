@@ -1,5 +1,11 @@
 #pragma once
 
+#ifndef RENDERER_H
+#define RENDERER_H
+
+#include "RTPReceiver.h"
+#include "MediaEventHandler.h"
+
 #include <d3d9.h>
 #include <dxva2api.h>
 
@@ -16,7 +22,7 @@
  
 #include <windowsx.h>
 
-#include "commonTools.h"
+#include "BufferQueue.h"
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "evr.lib")
@@ -30,33 +36,70 @@
 #pragma comment(lib, "Dxva2.lib")
 
 
+
 //define structure to describe the source format
-struct sourceFormatDescriptor
+struct SourceFormatDescriptor
 {
 	unsigned __int32 width;
 	unsigned __int32 height;
 	unsigned __int32 bitDepth;
+	int fps;
+	int sampling;
 };
 
 
 class Renderer
 {
-	public:
-		Renderer(unsigned __int32 m_width, unsigned __int32 m_height, unsigned __int32 m_bitDepth, HWND m_hwnd);
-		HRESULT ShutdownRenderer();
-		HRESULT SetVideoSource();
+public:
+	Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __int32 bitDepth, HWND hwnd);
+
+	int addPayload();
+	int addNewFrame();
+	void startRTPReceiver(uint16_t port);
+	void stopRTPReceiver();
+	
+	BufferQueues bufferQueue;
+
+protected:
+	RTPReceiver rtpSess;
+	WSAData dat;
+	uint16_t portbase = 20000;
+	int status;
+
+	jrtplib::RTPUDPv4TransmissionParams transparams;
+	jrtplib::RTPSessionParams sessparams;
+	
+private:
+	SourceFormatDescriptor sourceFormat;
+
+	//Media Foudation
+	IMFMediaType* pVideoOutType;
+	IMFMediaSink* pVideoSink;
+	IMFStreamSink* pStreamSink;
+	IMFMediaTypeHandler* pSinkMediaTypeHandler;
+	IMFVideoRenderer* pVideoRenderer;
+	IMFVideoDisplayControl* pVideoDisplayControl;
+	IMFGetService* pService;
+	IMFActivate* pActive;
+	IMFPresentationClock* pClock;
+	IMFPresentationTimeSource* pTimeSource;
+	IDirect3DDeviceManager9* pD3DManager;
+	IMFVideoSampleAllocator* pVideoSampleAllocator;
+	IMFSample* pD3DVideoSample;
+	IMFMediaBuffer* pDstBuffer;
+	IMF2DBuffer* p2DBuffer;
+	RECT rc;
+	BOOL fSelected;
+	BYTE* bitmapBuffer;
+
+	IMFMediaEventGenerator* pEventGenerator;
+	IMFMediaEventGenerator* pstreamSinkEventGenerator;
+	MediaEventHandler mediaEvtHandler;
+	MediaEventHandler streamSinkMediaEvtHandler;
+
+	//handle to the window
+	HWND m_hwnd;
 };
 
-class MediaEventHandler : IMFAsyncCallback
-{
-	HRESULT STDMETHODCALLTYPE Invoke(IMFAsyncResult* pAsyncResult);
-	HRESULT STDMETHODCALLTYPE GetParameters(
-		DWORD* pdwFlags,
-		DWORD* pdwQueue
-	);
-	HRESULT STDMETHODCALLTYPE QueryInterface(
-		/* [in] */ REFIID riid,
-		/* [iid_is][out] */ _COM_Outptr_ void __RPC_FAR* __RPC_FAR* ppvObject);
-	ULONG STDMETHODCALLTYPE AddRef(void);
-	ULONG STDMETHODCALLTYPE Release(void);
-};
+#endif
+
