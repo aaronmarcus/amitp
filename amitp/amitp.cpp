@@ -1,33 +1,15 @@
-
-//include project header files
-#include "baseWindow.h"
-#include "Renderer.h"
-
-
-
-
-//template for releasing items
-template <class T> void SafeRelease(T** ppT)
-{
-    if (*ppT)
-    {
-        (*ppT)->Release();
-        *ppT = NULL;
-    }
-}
-
-//main window class
-class MainWindow : public BaseWindow<MainWindow>
-{
-public:
-    PCWSTR  ClassName() const { return L"Sample Window Class"; }
-    LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
-};
+#include "amitp.h"
 
 //windows entry point
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow)
 {
-    
+    //allocate console for debugging
+    AllocConsole();
+    FILE* fDummy;
+    freopen_s(&fDummy, "CONIN$", "r", stdin);
+    freopen_s(&fDummy, "CONOUT$", "w", stderr);
+    freopen_s(&fDummy, "CONOUT$", "w", stdout);
+	
     MainWindow CMainWin;
 
     if (!CMainWin.Create(L"Main Window", WS_OVERLAPPEDWINDOW))
@@ -35,13 +17,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
         return 0;
     }
 
-    ShowWindow(CMainWin.Window(), nCmdShow);
+    //ShowWindow(CMainWin.Window(), nCmdShow);
 	
 	//TODO run the renderer in a new thread
-    Renderer renderer(1920, 1080, 10, CMainWin.Window());
+    Renderer renderer(1280, 720, 10, CMainWin.Window());
+    renderer.startRTPReceiver(20000);
+    //std::this_thread::sleep_for(std::chrono::seconds(10));
+    //renderer.stopRTPReceiver();
 
-	
-	
+
+
+
 	
     // Run the message loop.
     MSG msg = { };

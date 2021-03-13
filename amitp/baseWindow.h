@@ -1,6 +1,9 @@
 #pragma once
 
-#include "commonTools.h"
+#ifndef BASE_WINDOW_H
+#define BASE_WINDOW_H
+
+#include <Windows.h>
 
 template <class DERIVED_TYPE>
 class BaseWindow
@@ -71,3 +74,5 @@ protected:
 
     HWND m_hwnd;
 };
+
+#endif
