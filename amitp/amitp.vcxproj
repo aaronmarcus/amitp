@@ -148,7 +148,6 @@
     <ClCompile Include="BufferQueue.cpp" />
     <ClCompile Include="amitp.cpp" />
     <ClCompile Include="MediaEventHandler.cpp" />
-    <ClCompile Include="RTPReceiver.cpp" />
     <ClCompile Include="Renderer.cpp" />
   </ItemGroup>
   <ItemGroup>

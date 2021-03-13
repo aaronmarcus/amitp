@@ -15,18 +15,5 @@
 #include <iostream>
 #include <string>
 
-#include "Renderer.h" //to get access to the methods to dump payloads
-
-class RTPReceiver : public jrtplib::RTPSession
-{
-public:
-
-protected:
-	void OnPollThreadStep();
-	void ProcessRTPPacket(const jrtplib::RTPSourceData& srcdat, const jrtplib::RTPPacket& rtppack);
-
-	Renderer* m_pRenderer;
-};
-
 #endif
 

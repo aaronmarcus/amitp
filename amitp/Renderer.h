@@ -5,6 +5,7 @@
 
 #include "RTPReceiver.h"
 #include "MediaEventHandler.h"
+#include "BufferQueue.h"
 
 #include <d3d9.h>
 #include <dxva2api.h>
@@ -22,7 +23,7 @@
  
 #include <windowsx.h>
 
-#include "BufferQueue.h"
+
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "evr.lib")
@@ -48,23 +49,28 @@ struct SourceFormatDescriptor
 };
 
 
-class Renderer
+class Renderer : protected jrtplib::RTPSession, protected BufferQueues
 {
 public:
 	Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __int32 bitDepth, HWND hwnd);
 
-	int addPayload();
-	int addNewFrame();
 	void startRTPReceiver(uint16_t port);
 	void stopRTPReceiver();
 	
-	BufferQueues bufferQueue;
-
 protected:
-	RTPReceiver rtpSess;
+	void addPayload();
+	void addNewFrame();
+	
+	//jrtplib
+	void OnPollThreadStep() override;
+	void ProcessRTPPacket(const jrtplib::RTPSourceData& srcdat, const jrtplib::RTPPacket& rtppack);
 	WSAData dat;
 	uint16_t portbase = 20000;
 	int status;
+
+	bool firstMarker = true;
+	bool lastFrameWasMarker;
+	
 
 	jrtplib::RTPUDPv4TransmissionParams transparams;
 	jrtplib::RTPSessionParams sessparams;
