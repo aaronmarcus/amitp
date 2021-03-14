@@ -57,9 +57,7 @@ public:
 	void startRTPReceiver(uint16_t port);
 	void stopRTPReceiver();
 	
-protected:
-	void addPayload();
-	void addNewFrame();
+protected:      
 	
 	//jrtplib
 	void OnPollThreadStep() override;
@@ -68,8 +66,8 @@ protected:
 	uint16_t portbase = 20000;
 	int status;
 
-	bool firstMarker = true;
-	bool lastFrameWasMarker;
+	bool firstMarker;
+	bool lastPacketHadMarker;
 	
 
 	jrtplib::RTPUDPv4TransmissionParams transparams;
