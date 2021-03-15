@@ -4,6 +4,9 @@
 #define BUFFERQUEUE_H
 
 #include <vector>
+#include <mutex>
+#include <iostream>
+
 
 struct PacketPayload
 {
@@ -24,13 +27,15 @@ struct Frame
 	uint32_t timestamp;
 	size_t currentLength;
 	bool frameComplete;
-	
 };
-
+ 
 class BufferQueues
 {
 public:
 	BufferQueues(size_t bufferSize);
+
+	std::mutex m;
+
 protected:
 	//frames
 	std::vector<Frame> frameQueue;
@@ -39,6 +44,7 @@ protected:
 	void addPayload(void* pPayload, size_t payloadLength, uint32_t timestamp, uint32_t extSeqNum);
 	
 	size_t m_bufferSize;
+	bool firstFrame;
 
 };
 

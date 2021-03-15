@@ -17,12 +17,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
         return 0;
     }
 
-    //ShowWindow(CMainWin.Window(), nCmdShow);
+    ShowWindow(CMainWin.Window(), nCmdShow);
 	
 	//TODO run the renderer in a new thread
     Renderer renderer(1280, 720, 10, CMainWin.Window());
     renderer.startRTPReceiver(20000);
-    //std::this_thread::sleep_for(std::chrono::seconds(10));
+    std::this_thread::sleep_for(std::chrono::seconds(7));
+    renderer.startRenderer();
+    
     //renderer.stopRTPReceiver();
 
 

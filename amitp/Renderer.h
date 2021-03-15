@@ -6,24 +6,28 @@
 #include "RTPReceiver.h"
 #include "MediaEventHandler.h"
 #include "BufferQueue.h"
+#include "commonTools.h"
+
+#include <stdio.h>
+#include <tchar.h>
+#include <iostream>
+
+#include <windowsx.h>
 
 #include <d3d9.h>
 #include <dxva2api.h>
-
 #include <evr.h>
 #include <mfapi.h>
 #include <Mferror.h>
 #include <mfobjects.h>
 #include <mfplay.h>
 #include <mfreadwrite.h>
-
 #include <stdio.h>
 #include <tchar.h>
-#include <iostream>
- 
+#include <Windows.h>
 #include <windowsx.h>
 
-
+#include <iostream>
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "evr.lib")
@@ -35,6 +39,10 @@
 #pragma comment(lib, "wmcodecdspuuid.lib")
 #pragma comment(lib, "d3d9.lib")
 #pragma comment(lib, "Dxva2.lib")
+
+
+
+
 
 
 
@@ -56,12 +64,13 @@ public:
 
 	void startRTPReceiver(uint16_t port);
 	void stopRTPReceiver();
+	void startRenderer();
 	
 protected:      
 	
 	//jrtplib
 	void OnPollThreadStep() override;
-	void ProcessRTPPacket(const jrtplib::RTPSourceData& srcdat, const jrtplib::RTPPacket& rtppack);
+	void ProcessRTPPacket(const jrtplib::RTPPacket& rtppack);
 	WSAData dat;
 	uint16_t portbase = 20000;
 	int status;
@@ -69,14 +78,14 @@ protected:
 	bool firstMarker;
 	bool lastPacketHadMarker;
 	
-
+	
 	jrtplib::RTPUDPv4TransmissionParams transparams;
 	jrtplib::RTPSessionParams sessparams;
 	
 private:
 	SourceFormatDescriptor sourceFormat;
 
-	//Media Foudation
+	////Media Foudation
 	IMFMediaType* pVideoOutType;
 	IMFMediaSink* pVideoSink;
 	IMFStreamSink* pStreamSink;
