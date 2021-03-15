@@ -20,6 +20,8 @@ Renderer::Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __i
 	
     m_hwnd = hwnd;
 
+	renderBuffer.resize(2321280);
+
 	IMFMediaType* pVideoOutType = NULL;
 	IMFMediaSink* pVideoSink = NULL;
 	IMFStreamSink* pStreamSink = NULL;
@@ -49,12 +51,11 @@ void Renderer::startRTPReceiver(uint16_t port)
 {
 	firstMarker = true;
 	lastPacketHadMarker = false;
-	firstFrame = true;
 	WSAStartup(MAKEWORD(2, 2), &dat);
 
 	sessparams.SetOwnTimestampUnit(1.0 / 8000.);
 	transparams.SetPortbase(portbase);
-	transparams.SetRTPReceiveBuffer(174483046*2);
+	transparams.SetRTPReceiveBuffer(5400000);
 	
 	status = Create(sessparams, &transparams);
 	checkRTPSessError(status);
@@ -69,7 +70,6 @@ void Renderer::stopRTPReceiver()
 void Renderer::startRenderer()
 {
 	DWORD sinkMediaTypeCount = 0;
-	unsigned char renderBuffer[2321280];
 	size_t renderBufferLength = 2321280;
 	LONGLONG llTimeStamp = 0;
 	UINT bitmapCount = 0;
@@ -170,26 +170,23 @@ void Renderer::startRenderer()
 	CHECK_HR(pVideoSink->SetPresentationClock(pClock), "Failed to set presentation clock on video sink.");
 	CHECK_HR(pClock->Start(0), "Error starting presentation clock.");
 
-	// Start writing bitmaps.
-	{
-		std::lock_guard<std::mutex> lock(m);
-		if (!frameQueue.empty())
+	//starting writing frame to buffer
+	{ //scope for mutex lock
+		
+		//iterate through the frameBuffer and copy to the render buffer
+		size_t transfered = 0;
 		{
-			//if (frameQueue.begin()->frameComplete)
+			std::unique_lock<std::mutex> lock(m);
+			for (int i = 0; i < frameQueue.begin()->frameData.size(); i++)
 			{
-				//iterate through the frameBuffer and copy to the render buffer
-				size_t transfered = 0;
-				for (int i = 0; i < frameQueue.begin()->frameData.size(); i++)
-				{
-					memcpy(&renderBuffer[transfered], &frameQueue.begin()->frameData[i].payload, frameQueue.begin()->frameData[i].payloadLength);
-					transfered += frameQueue.begin()->frameData[i].payloadLength;
-				}
-				CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
-				CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
-				CHECK_HR(p2DBuffer->ContiguousCopyFrom(renderBuffer, renderBufferLength), "Failed to copy frame to D2D buffer.");
-				CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
+				memcpy(&renderBuffer[transfered], &frameQueue.begin()->frameData[i].payload, frameQueue.begin()->frameData[i].payloadLength);
+				transfered += frameQueue.begin()->frameData[i].payloadLength;
 			}
 		}
+		CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
+		CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
+		CHECK_HR(p2DBuffer->ContiguousCopyFrom(&renderBuffer[0], renderBufferLength), "Failed to copy frame to D2D buffer.");
+		CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
 		
 	}
 
@@ -216,7 +213,7 @@ done:
 	printf("finished.\n");
 	auto c = getchar();
 
-	delete[] bitmapBuffer;
+	//delete[] bitmapBuffer;
 	SAFE_RELEASE(p2DBuffer);
 	SAFE_RELEASE(pDstBuffer);
 	SAFE_RELEASE(pVideoOutType);
@@ -235,6 +232,7 @@ done:
 	SAFE_RELEASE(pEventGenerator);
 	SAFE_RELEASE(pstreamSinkEventGenerator);
 
+	std::cin.get();
 	return;
 }
 
@@ -252,16 +250,9 @@ void Renderer::OnPollThreadStep()
 			
 			while ((pack = GetNextPacket()) != NULL)
 			{
-				if (firstMarker && !pack->HasMarker()) //only proccess the packet at the start if its useful
-				{
-					goto notUsefullPacket;
-				} else
-				{
-					ProcessRTPPacket(*pack);
-				}
-				
+				ProcessRTPPacket(*pack);
+				DeletePacket(pack);
 			}
-			notUsefullPacket: DeletePacket(pack);
 			
 		} while (GotoNextSourceWithData());
 	}
@@ -271,23 +262,25 @@ void Renderer::OnPollThreadStep()
 
 void Renderer::ProcessRTPPacket(const jrtplib::RTPPacket& rtppack)
 {
-	if (firstMarker && rtppack.HasMarker())
+	if (firstMarker)
 	{
-		firstMarker = false;
-		lastPacketHadMarker = true;
-		goto done;
-	}
-	if (lastPacketHadMarker)
+		if (rtppack.HasMarker()) 
+		{
+			addFrame(0);
+			firstMarker = false;
+			goto done;
+		}
+		else { goto done; }
+	} else
 	{
-		lastPacketHadMarker = false;
-		addFrame(rtppack.GetTimestamp());
-		//addPayload(rtppack.GetPayloadData(), rtppack.GetPayloadLength(), rtppack.GetTimestamp(), rtppack.GetExtendedSequenceNumber());
-	} else if (rtppack.HasMarker())
-	{
-		lastPacketHadMarker = true;
-		//addPayload(rtppack.GetPayloadData(), rtppack.GetPayloadLength(), rtppack.GetTimestamp(), rtppack.GetExtendedSequenceNumber());
+		if (lastPacketHadMarker)
+		{
+			addFrame(rtppack.GetTimestamp());
+			lastPacketHadMarker = false;
+		}
 	}
 	addPayload(rtppack.GetPayloadData(), rtppack.GetPayloadLength(), rtppack.GetTimestamp(), rtppack.GetExtendedSequenceNumber());
+	if (rtppack.HasMarker()) { lastPacketHadMarker = true; }
 done: return;
 }
 

@@ -22,9 +22,20 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow
 	//TODO run the renderer in a new thread
     Renderer renderer(1280, 720, 10, CMainWin.Window());
     renderer.startRTPReceiver(20000);
-    std::this_thread::sleep_for(std::chrono::seconds(7));
-    renderer.startRenderer();
-    
+    //jrtplib::RTPTime::Wait(jrtplib::RTPTime(100, 0));
+    //std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+    while (true)
+    {
+		std::unique_lock<std::mutex> lock(renderer.m); //lock till the end of the function scope
+        if (renderer.frameQueue.size() > 1)
+        {
+            break;
+        }
+        lock.unlock();
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    	
+    }
+	renderer.startRenderer(); 
     //renderer.stopRTPReceiver();
 
 

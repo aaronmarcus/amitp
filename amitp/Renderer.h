@@ -57,7 +57,7 @@ struct SourceFormatDescriptor
 };
 
 
-class Renderer : protected jrtplib::RTPSession, protected BufferQueues
+class Renderer : protected jrtplib::RTPSession, public BufferQueues
 {
 public:
 	Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __int32 bitDepth, HWND hwnd);
@@ -103,8 +103,7 @@ private:
 	IMF2DBuffer* p2DBuffer;
 	RECT rc;
 	BOOL fSelected;
-	BYTE* bitmapBuffer;
-
+	std::vector<BYTE> renderBuffer;
 	IMFMediaEventGenerator* pEventGenerator;
 	IMFMediaEventGenerator* pstreamSinkEventGenerator;
 	MediaEventHandler mediaEvtHandler;

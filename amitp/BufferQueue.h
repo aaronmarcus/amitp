@@ -6,6 +6,7 @@
 #include <vector>
 #include <mutex>
 #include <iostream>
+//#include <Windows.h>
 
 
 struct PacketPayload
@@ -34,11 +35,14 @@ class BufferQueues
 public:
 	BufferQueues(size_t bufferSize);
 
+	//mutex lock
 	std::mutex m;
-
-protected:
+	
 	//frames
 	std::vector<Frame> frameQueue;
+
+protected:
+	
 
 	void addFrame(uint32_t timestamp);
 	void addPayload(void* pPayload, size_t payloadLength, uint32_t timestamp, uint32_t extSeqNum);
