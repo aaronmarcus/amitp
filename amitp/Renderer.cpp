@@ -25,6 +25,53 @@ void PrintArrayAsBinary(const uint16_t* twoByteArray, size_t len)
 	}
 	std::cout << "}\n";
 }
+
+HRESULT GetDefaultStride(IMFMediaType* pType, LONG* plStride)
+{
+	LONG lStride = 0;
+
+	// Try to get the default stride from the media type.
+	HRESULT hr = pType->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32*)&lStride);
+	if (FAILED(hr))
+	{
+		// Attribute not set. Try to calculate the default stride.
+
+		GUID subtype = GUID_NULL;
+
+		UINT32 width = 0;
+		UINT32 height = 0;
+
+		// Get the subtype and the image size.
+		hr = pType->GetGUID(MF_MT_SUBTYPE, &subtype);
+		if (FAILED(hr))
+		{
+			goto done;
+		}
+
+		hr = MFGetAttributeSize(pType, MF_MT_FRAME_SIZE, &width, &height);
+		if (FAILED(hr))
+		{
+			goto done;
+		}
+
+		hr = MFGetStrideForBitmapInfoHeader(subtype.Data1, width, &lStride);
+		if (FAILED(hr))
+		{
+			goto done;
+		}
+
+		// Set the attribute for later reference.
+		(void)pType->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(lStride));
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		*plStride = lStride;
+	}
+
+done:
+	return hr;
+}
 HRESULT CreateUncompressedVideoType(
 	DWORD                fccFormat,  // FOURCC or D3DFORMAT value.     
 	UINT32               width,
@@ -79,8 +126,14 @@ HRESULT CreateUncompressedVideoType(
 		goto done;
 	}
 
-	// Calculate the default stride value.
-	hr = pType->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(5120));
+	
+	hr = GetDefaultStride(pType, &lStride);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+	
+	hr = pType->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(lStride));
 	if (FAILED(hr))
 	{
 		goto done;
@@ -313,7 +366,7 @@ void Renderer::startRenderer()
 		//intermediateRenderBuffer.resize(frameQueue.begin()->currentLength); //3686400
 		for (int i = 0; i < frameQueue.begin()->frameData.size(); i++)
 		{
-			memcpy((void*)&intermediateRenderBuffer[transfered], (void*)frameQueue.begin()->frameData[i].payload.data(), frameQueue.begin()->frameData[i].payloadLength);
+			memcpy(&intermediateRenderBuffer[transfered], frameQueue.begin()->frameData[i].payload.data(), frameQueue.begin()->frameData[i].payloadLength);
 			transfered += frameQueue.begin()->frameData[i].payloadLength;
 		}
 	//todo combine this with the first loop
@@ -325,9 +378,7 @@ void Renderer::startRenderer()
 			renderBuffer[1 + x] = (((uint16_t)intermediateRenderBuffer[1 + i] & 0b00111111u) << (2 + 8)) | (((uint16_t)intermediateRenderBuffer[2 + i] & 0b11110000u) << 2);
 			renderBuffer[2 + x] = (((uint16_t)intermediateRenderBuffer[2 + i] & 0b00001111u) << (4 + 8)) | (((uint16_t)intermediateRenderBuffer[3 + i] & 0b11111100u) << 4);
 			renderBuffer[3 + x] = (((uint16_t)intermediateRenderBuffer[3 + i] & 0b00000011u) << (6 + 8)) | (((uint16_t)intermediateRenderBuffer[4 + i] & 0b11111111u) << 6);
-			PrintArrayAsBinary(&renderBuffer[x], 4);
 			x += 4;
-			
 		}
 	};
 	CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
@@ -337,6 +388,7 @@ void Renderer::startRenderer()
 	while (true)
 	{
 		llTimeStamp+=333333;
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
 		CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
 		CHECK_HR(p2DBuffer->ContiguousCopyFrom((BYTE*)renderBuffer.data(), renderBuffer.size() * 2), "Failed to copy frame to D2D buffer.");
