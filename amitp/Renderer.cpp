@@ -1,5 +1,6 @@
 #include "Renderer.h"
 
+#include <bitset>
 
 void checkRTPSessError(int rtperr)
 {
@@ -8,6 +9,129 @@ void checkRTPSessError(int rtperr)
 		std::cout << "ERROR: " << jrtplib::RTPGetErrorString(rtperr) << std::endl;
 		exit(-1);
 	}
+}
+
+void PrintArrayAsBinary(const uint16_t* twoByteArray, size_t len)
+{
+	std::cout << "{\n";
+	for (size_t i = 0; i < len; i++)
+	{
+		std::cout << std::bitset<16>(twoByteArray[i]);
+		if (i < len - 1)
+		{
+			std::cout << ",";
+		}
+		std::cout << std::endl;
+	}
+	std::cout << "}\n";
+}
+HRESULT CreateUncompressedVideoType(
+	DWORD                fccFormat,  // FOURCC or D3DFORMAT value.     
+	UINT32               width,
+	UINT32               height,
+	MFVideoInterlaceMode interlaceMode,
+	const MFRatio& frameRate,
+	const MFRatio& par,
+	IMFMediaType** ppType
+)
+{
+	if (ppType == NULL)
+	{
+		return E_POINTER;
+	}
+
+	GUID    subtype = MFVideoFormat_Base;
+	LONG    lStride = 0;
+	UINT32    cbImage = 0;
+
+	IMFMediaType* pType = NULL;
+
+	// Set the subtype GUID from the FOURCC or D3DFORMAT value.
+	subtype.Data1 = fccFormat;
+
+	HRESULT hr = MFCreateMediaType(&pType);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pType->SetGUID(MF_MT_SUBTYPE, subtype);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pType->SetUINT32(MF_MT_INTERLACE_MODE, interlaceMode);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = MFSetAttributeSize(pType, MF_MT_FRAME_SIZE, width, height);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	// Calculate the default stride value.
+	hr = pType->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(5120));
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	// Calculate the image size in bytes.
+	hr = MFCalculateImageSize(subtype, width, height, &cbImage);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pType->SetUINT32(MF_MT_SAMPLE_SIZE, cbImage);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pType->SetUINT32(MF_MT_FIXED_SIZE_SAMPLES, TRUE);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	// Frame rate
+	hr = MFSetAttributeRatio(pType, MF_MT_FRAME_RATE, frameRate.Numerator, frameRate.Denominator);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	// Pixel aspect ratio
+	hr = MFSetAttributeRatio(pType, MF_MT_PIXEL_ASPECT_RATIO, par.Numerator, par.Denominator);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	// Return the pointer to the caller.
+	*ppType = pType;
+	(*ppType)->AddRef();
+
+done:
+	SAFE_RELEASE(&pType);
+	return hr;
 }
 
 //Renderer Constructor
@@ -20,31 +144,30 @@ Renderer::Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __i
 	
     m_hwnd = hwnd;
 
-	renderBuffer.resize(2321280);
+	//intermediateRenderBuffer.resize(2321280);
 
-	IMFMediaType* pVideoOutType = NULL;
-	IMFMediaSink* pVideoSink = NULL;
-	IMFStreamSink* pStreamSink = NULL;
-	IMFMediaTypeHandler* pSinkMediaTypeHandler = NULL;
-	IMFVideoRenderer* pVideoRenderer = NULL;
-	IMFVideoDisplayControl* pVideoDisplayControl = NULL;
-	IMFGetService* pService = NULL;
-	IMFActivate* pActive = NULL;
-	IMFPresentationClock* pClock = NULL;
-	IMFPresentationTimeSource* pTimeSource = NULL;
-	IDirect3DDeviceManager9* pD3DManager = NULL;
-	IMFVideoSampleAllocator* pVideoSampleAllocator = NULL;
-	IMFSample* pD3DVideoSample = NULL;
-	IMFMediaBuffer* pDstBuffer = NULL;
-	IMF2DBuffer* p2DBuffer = NULL;
-	RECT rc = { 0, 0, width, height };
-	BOOL fSelected = false;
-	BYTE* bitmapBuffer = new BYTE[4 * width * width];;
+	pVideoOutType = NULL;
+	pVideoSink = NULL;
+	pStreamSink = NULL;
+	pSinkMediaTypeHandler = NULL;
+	pVideoRenderer = NULL;
+	pVideoDisplayControl = NULL;
+	pService = NULL;
+	pActive = NULL;
+	pClock = NULL;
+	pTimeSource = NULL;
+	pD3DManager = NULL;
+	pVideoSampleAllocator = NULL;
+	pD3DVideoSample = NULL;
+	pDstBuffer = NULL;
+	p2DBuffer = NULL;
+	rc = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+	fSelected = false;
 
-	IMFMediaEventGenerator* pEventGenerator = NULL;
-	IMFMediaEventGenerator* pstreamSinkEventGenerator = NULL;
-	MediaEventHandler mediaEvtHandler;
-	MediaEventHandler streamSinkMediaEvtHandler;
+	pEventGenerator = NULL;
+	pstreamSinkEventGenerator = NULL;
+	mediaEvtHandler;
+	streamSinkMediaEvtHandler;
 }
 
 void Renderer::startRTPReceiver(uint16_t port)
@@ -56,6 +179,7 @@ void Renderer::startRTPReceiver(uint16_t port)
 	sessparams.SetOwnTimestampUnit(1.0 / 8000.);
 	transparams.SetPortbase(portbase);
 	transparams.SetRTPReceiveBuffer(5400000);
+	SetMaximumPacketSize(1500);
 	
 	status = Create(sessparams, &transparams);
 	checkRTPSessError(status);
@@ -69,11 +193,15 @@ void Renderer::stopRTPReceiver()
 
 void Renderer::startRenderer()
 {
+	stopRTPReceiver();
 	DWORD sinkMediaTypeCount = 0;
-	size_t renderBufferLength = 2321280;
+	size_t renderBufferLength = 3686400;
 	LONGLONG llTimeStamp = 0;
 	UINT bitmapCount = 0;
 	LONGLONG sampleDuration = 333333;
+	uint32_t stride = 0;
+	MFRatio fps = {30,1}, par = {1,1};
+	IMFMediaType* supported;
 	
 	CHECK_HR(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE),
 		"COM initialisation failed.");
@@ -125,16 +253,19 @@ void Renderer::startRenderer()
 	// ----- Create the EVR compatible media type and set on the stream sink. -----
 
 	// Set the video input type on the EVR sink.
-	CHECK_HR(MFCreateMediaType(&pVideoOutType), "Failed to create video output media type.");
+	/*CHECK_HR(MFCreateMediaType(&pVideoOutType), "Failed to create video output media type.");
 	CHECK_HR(pVideoOutType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video), "Failed to set video output media major type.");
 	CHECK_HR(pVideoOutType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_Y210), "Failed to set video sub-type attribute on media type.");
 	CHECK_HR(pVideoOutType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive), "Failed to set interlace mode attribute on media type.");
 	CHECK_HR(pVideoOutType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE), "Failed to set independent samples attribute on media type.");
 	CHECK_HR(MFSetAttributeRatio(pVideoOutType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1), "Failed to set pixel aspect ratio attribute on media type.");
-	CHECK_HR(MFSetAttributeSize(pVideoOutType, MF_MT_FRAME_SIZE, sourceFormat.width, sourceFormat.height), "Failed to set the frame size attribute on media type.");
+	CHECK_HR(MFSetAttributeSize(pVideoOutType, MF_MT_FRAME_SIZE, sourceFormat.width, sourceFormat.height), "Failed to set the frame size attribute on media type.");*/
 
+	CHECK_HR(CreateUncompressedVideoType('012Y', sourceFormat.width, sourceFormat.height, MFVideoInterlace_Progressive, fps, par, &pVideoOutType), "Failed to create uncompressed video type");
 	//std::cout << "EVR input media type defined as:" << std::endl;
 	//std::cout << GetMediaTypeDescription(pVideoOutType) << std::endl << std::endl;
+
+	CHECK_HR(pSinkMediaTypeHandler->IsMediaTypeSupported(pVideoOutType, &supported), "Media Type not supported");
 
 	CHECK_HR(pSinkMediaTypeHandler->SetCurrentMediaType(pVideoOutType),
 		"Failed to set input media type on EVR sink.");
@@ -169,44 +300,49 @@ void Renderer::startRenderer()
 	CHECK_HR(pClock->SetTimeSource(pTimeSource), "Failed to set time source.");
 	CHECK_HR(pVideoSink->SetPresentationClock(pClock), "Failed to set presentation clock on video sink.");
 	CHECK_HR(pClock->Start(0), "Error starting presentation clock.");
+	
 
 	//starting writing frame to buffer
-	{ //scope for mutex lock
-		
 		//iterate through the frameBuffer and copy to the render buffer
+	
+	{
 		size_t transfered = 0;
+		std::unique_lock<std::mutex> lock(m);
+		intermediateRenderBuffer.resize(frameQueue.begin()->currentLength);
+		std::cout << frameQueue.begin()->currentLength << std::endl;
+		//intermediateRenderBuffer.resize(frameQueue.begin()->currentLength); //3686400
+		for (int i = 0; i < frameQueue.begin()->frameData.size(); i++)
 		{
-			std::unique_lock<std::mutex> lock(m);
-			for (int i = 0; i < frameQueue.begin()->frameData.size(); i++)
-			{
-				memcpy(&renderBuffer[transfered], &frameQueue.begin()->frameData[i].payload, frameQueue.begin()->frameData[i].payloadLength);
-				transfered += frameQueue.begin()->frameData[i].payloadLength;
-			}
+			memcpy((void*)&intermediateRenderBuffer[transfered], (void*)frameQueue.begin()->frameData[i].payload.data(), frameQueue.begin()->frameData[i].payloadLength);
+			transfered += frameQueue.begin()->frameData[i].payloadLength;
 		}
+	//todo combine this with the first loop
+		int x = 0;
+		for (int i = 0; i < intermediateRenderBuffer.size(); i += 5)
+		{
+			renderBuffer.resize(renderBuffer.size()+4);
+			renderBuffer[0 + x] = (((uint16_t)intermediateRenderBuffer[0 + i] & 0b11111111u) << (0 + 8)) | (((uint16_t)intermediateRenderBuffer[1 + i] & 0b11000000u) << 0);
+			renderBuffer[1 + x] = (((uint16_t)intermediateRenderBuffer[1 + i] & 0b00111111u) << (2 + 8)) | (((uint16_t)intermediateRenderBuffer[2 + i] & 0b11110000u) << 2);
+			renderBuffer[2 + x] = (((uint16_t)intermediateRenderBuffer[2 + i] & 0b00001111u) << (4 + 8)) | (((uint16_t)intermediateRenderBuffer[3 + i] & 0b11111100u) << 4);
+			renderBuffer[3 + x] = (((uint16_t)intermediateRenderBuffer[3 + i] & 0b00000011u) << (6 + 8)) | (((uint16_t)intermediateRenderBuffer[4 + i] & 0b11111111u) << 6);
+			PrintArrayAsBinary(&renderBuffer[x], 4);
+			x += 4;
+			
+		}
+	};
+	CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
+	CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
+	CHECK_HR(p2DBuffer->ContiguousCopyFrom((BYTE*)renderBuffer.data(), renderBuffer.size()*2), "Failed to copy frame to D2D buffer.");
+	CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
+	while (true)
+	{
+		llTimeStamp+=333333;
 		CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
 		CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
-		CHECK_HR(p2DBuffer->ContiguousCopyFrom(&renderBuffer[0], renderBufferLength), "Failed to copy frame to D2D buffer.");
+		CHECK_HR(p2DBuffer->ContiguousCopyFrom((BYTE*)renderBuffer.data(), renderBuffer.size() * 2), "Failed to copy frame to D2D buffer.");
 		CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
-		
-	}
-
-	//while (true)
-	//{
-	//	{
-	//		std::lock_guard<std::mutex> lock(m);
-	//		if (frameQueue.begin()->frameComplete)
-	//		{
-	//			CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
-	//			CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
-	//			CHECK_HR(p2DBuffer->ContiguousCopyFrom(renderBuffer, renderBufferLength), "Failed to copy bitmap to D2D buffer.");
-	//			CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
-	//		}
-	//	}
-
-	//	//Sleep(SAMPLE_DURATION / 10000);
-
-	//	llTimeStamp += sampleDuration;
-	//}
+		std::cout << "Processed" << std::endl;
+	};
 
 done:
 
@@ -284,7 +420,7 @@ void Renderer::ProcessRTPPacket(const jrtplib::RTPPacket& rtppack)
 done: return;
 }
 
-    
+
   
 
 

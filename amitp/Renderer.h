@@ -26,7 +26,7 @@
 #include <tchar.h>
 #include <Windows.h>
 #include <windowsx.h>
-
+#include <bitset>
 #include <iostream>
 
 #pragma comment(lib, "mf.lib")
@@ -78,7 +78,6 @@ protected:
 	bool firstMarker;
 	bool lastPacketHadMarker;
 	
-	
 	jrtplib::RTPUDPv4TransmissionParams transparams;
 	jrtplib::RTPSessionParams sessparams;
 	
@@ -103,7 +102,8 @@ private:
 	IMF2DBuffer* p2DBuffer;
 	RECT rc;
 	BOOL fSelected;
-	std::vector<BYTE> renderBuffer;
+	std::vector<uint8_t> intermediateRenderBuffer;
+	std::vector<uint16_t> renderBuffer;
 	IMFMediaEventGenerator* pEventGenerator;
 	IMFMediaEventGenerator* pstreamSinkEventGenerator;
 	MediaEventHandler mediaEvtHandler;
