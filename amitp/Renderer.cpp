@@ -197,7 +197,7 @@ Renderer::Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __i
 	
     m_hwnd = hwnd;
 
-	//intermediateRenderBuffer.resize(2321280);
+	//intermediateByteBuffer.resize(2321280);
 
 	pVideoOutType = NULL;
 	pVideoSink = NULL;
@@ -314,7 +314,7 @@ void Renderer::startRenderer()
 	CHECK_HR(MFSetAttributeRatio(pVideoOutType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1), "Failed to set pixel aspect ratio attribute on media type.");
 	CHECK_HR(MFSetAttributeSize(pVideoOutType, MF_MT_FRAME_SIZE, sourceFormat.width, sourceFormat.height), "Failed to set the frame size attribute on media type.");*/
 
-	CHECK_HR(CreateUncompressedVideoType('012Y', sourceFormat.width, sourceFormat.height, MFVideoInterlace_Progressive, fps, par, &pVideoOutType), "Failed to create uncompressed video type");
+	CHECK_HR(CreateUncompressedVideoType('YVYU', sourceFormat.width, sourceFormat.height, MFVideoInterlace_Progressive, fps, par, &pVideoOutType), "Failed to create uncompressed video type");
 	//std::cout << "EVR input media type defined as:" << std::endl;
 	//std::cout << GetMediaTypeDescription(pVideoOutType) << std::endl << std::endl;
 
@@ -361,31 +361,45 @@ void Renderer::startRenderer()
 	{
 		size_t transfered = 0;
 		std::unique_lock<std::mutex> lock(m);
-		intermediateRenderBuffer.resize(frameQueue.begin()->currentLength);
+		intermediateByteBuffer.resize(frameQueue.begin()->currentLength);
 		std::cout << frameQueue.begin()->currentLength << std::endl;
-		//intermediateRenderBuffer.resize(frameQueue.begin()->currentLength); //3686400
+		//intermediateByteBuffer.resize(frameQueue.begin()->currentLength); //3686400
 		for (int i = 0; i < frameQueue.begin()->frameData.size(); i++)
 		{
-			memcpy(&intermediateRenderBuffer[transfered], frameQueue.begin()->frameData[i].payload.data(), frameQueue.begin()->frameData[i].payloadLength);
+			memcpy(&intermediateByteBuffer[transfered], frameQueue.begin()->frameData[i].payload.data(), frameQueue.begin()->frameData[i].payloadLength);
 			transfered += frameQueue.begin()->frameData[i].payloadLength;
 		}
 	//todo combine this with the first loop
+		//extract the 10 bit values into WORDs with padding //todo optimise the loops
 		int x = 0;
-		for (int i = 0; i < intermediateRenderBuffer.size(); i += 5)
+		for (int i = 0; i < intermediateByteBuffer.size(); i += 5)
 		{
-			renderBuffer.resize(renderBuffer.size()+4);
-			renderBuffer[0 + x] = (((uint16_t)intermediateRenderBuffer[0 + i] & 0b11111111u) << (0 + 8)) | (((uint16_t)intermediateRenderBuffer[1 + i] & 0b11000000u) << 0);
-			renderBuffer[1 + x] = (((uint16_t)intermediateRenderBuffer[1 + i] & 0b00111111u) << (2 + 8)) | (((uint16_t)intermediateRenderBuffer[2 + i] & 0b11110000u) << 2);
-			renderBuffer[2 + x] = (((uint16_t)intermediateRenderBuffer[2 + i] & 0b00001111u) << (4 + 8)) | (((uint16_t)intermediateRenderBuffer[3 + i] & 0b11111100u) << 4);
-			renderBuffer[3 + x] = (((uint16_t)intermediateRenderBuffer[3 + i] & 0b00000011u) << (6 + 8)) | (((uint16_t)intermediateRenderBuffer[4 + i] & 0b11111111u) << 6);
+			intermediateWORDBuffer.resize(intermediateWORDBuffer.size()+4);
+			intermediateWORDBuffer[0 + x] = (((uint16_t)intermediateByteBuffer[0 + i] & 0b11111111u) << (0 + 8)) | (((uint16_t)intermediateByteBuffer[1 + i] & 0b11000000u) << 0);
+			intermediateWORDBuffer[1 + x] = (((uint16_t)intermediateByteBuffer[1 + i] & 0b00111111u) << (2 + 8)) | (((uint16_t)intermediateByteBuffer[2 + i] & 0b11110000u) << 2);
+			intermediateWORDBuffer[2 + x] = (((uint16_t)intermediateByteBuffer[2 + i] & 0b00001111u) << (4 + 8)) | (((uint16_t)intermediateByteBuffer[3 + i] & 0b11111100u) << 4);
+			intermediateWORDBuffer[3 + x] = (((uint16_t)intermediateByteBuffer[3 + i] & 0b00000011u) << (6 + 8)) | (((uint16_t)intermediateByteBuffer[4 + i] & 0b11111111u) << 6);
 			x += 4;
+		}
+		renderBuffer.resize(intermediateWORDBuffer.size());
+		//convert 10bits to 8 bits //TODO optimise the loops
+		for (int i = 0; i < intermediateWORDBuffer.size(); i += 8)
+		{
+			renderBuffer[i + 0] = (intermediateWORDBuffer[i + 0] >> 8);
+			renderBuffer[i + 1] = (intermediateWORDBuffer[i + 1] >> 8);
+			renderBuffer[i + 2] = (intermediateWORDBuffer[i + 2] >> 8);
+			renderBuffer[i + 3] = (intermediateWORDBuffer[i + 3] >> 8);
+			renderBuffer[i + 4] = (intermediateWORDBuffer[i + 4] >> 8);
+			renderBuffer[i + 5] = (intermediateWORDBuffer[i + 5] >> 8);
+			renderBuffer[i + 6] = (intermediateWORDBuffer[i + 6] >> 8);
+			renderBuffer[i + 7] = (intermediateWORDBuffer[i + 7] >> 8);
 		}
 	};
 	CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
 	CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
-	CHECK_HR(p2DBuffer->ContiguousCopyFrom((BYTE*)renderBuffer.data(), renderBuffer.size()*2), "Failed to copy frame to D2D buffer.");
+	CHECK_HR(p2DBuffer->ContiguousCopyFrom(renderBuffer.data(), renderBuffer.size()), "Failed to copy frame to D2D buffer.");
 	CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
-	while (true)
+	/*while (true)
 	{
 		llTimeStamp+=333333;
 		std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -394,7 +408,7 @@ void Renderer::startRenderer()
 		CHECK_HR(p2DBuffer->ContiguousCopyFrom((BYTE*)renderBuffer.data(), renderBuffer.size() * 2), "Failed to copy frame to D2D buffer.");
 		CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
 		std::cout << "Processed" << std::endl;
-	};
+	};*/
 
 done:
 

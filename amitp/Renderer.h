@@ -102,8 +102,9 @@ private:
 	IMF2DBuffer* p2DBuffer;
 	RECT rc;
 	BOOL fSelected;
-	std::vector<uint8_t> intermediateRenderBuffer;
-	std::vector<uint16_t> renderBuffer;
+	std::vector<uint8_t> intermediateByteBuffer;
+	std::vector<uint8_t> renderBuffer;
+	std::vector<uint16_t> intermediateWORDBuffer;
 	IMFMediaEventGenerator* pEventGenerator;
 	IMFMediaEventGenerator* pstreamSinkEventGenerator;
 	MediaEventHandler mediaEvtHandler;
