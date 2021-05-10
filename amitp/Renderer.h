@@ -6,24 +6,28 @@
 #include "RTPReceiver.h"
 #include "MediaEventHandler.h"
 #include "BufferQueue.h"
+#include "commonTools.h"
+
+#include <stdio.h>
+#include <tchar.h>
+#include <iostream>
+
+#include <windowsx.h>
 
 #include <d3d9.h>
 #include <dxva2api.h>
-
 #include <evr.h>
 #include <mfapi.h>
 #include <Mferror.h>
 #include <mfobjects.h>
 #include <mfplay.h>
 #include <mfreadwrite.h>
-
 #include <stdio.h>
 #include <tchar.h>
-#include <iostream>
- 
+#include <Windows.h>
 #include <windowsx.h>
-
-
+#include <bitset>
+#include <iostream>
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "evr.lib")
@@ -38,6 +42,10 @@
 
 
 
+
+
+
+
 //define structure to describe the source format
 struct SourceFormatDescriptor
 {
@@ -49,19 +57,20 @@ struct SourceFormatDescriptor
 };
 
 
-class Renderer : protected jrtplib::RTPSession, protected BufferQueues
+class Renderer : protected jrtplib::RTPSession, public BufferQueues
 {
 public:
 	Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __int32 bitDepth, HWND hwnd);
 
 	void startRTPReceiver(uint16_t port);
 	void stopRTPReceiver();
+	void startRenderer();
 	
 protected:      
 	
 	//jrtplib
 	void OnPollThreadStep() override;
-	void ProcessRTPPacket(const jrtplib::RTPSourceData& srcdat, const jrtplib::RTPPacket& rtppack);
+	void ProcessRTPPacket(const jrtplib::RTPPacket& rtppack);
 	WSAData dat;
 	uint16_t portbase = 20000;
 	int status;
@@ -69,14 +78,13 @@ protected:
 	bool firstMarker;
 	bool lastPacketHadMarker;
 	
-
 	jrtplib::RTPUDPv4TransmissionParams transparams;
 	jrtplib::RTPSessionParams sessparams;
 	
 private:
 	SourceFormatDescriptor sourceFormat;
 
-	//Media Foudation
+	////Media Foudation
 	IMFMediaType* pVideoOutType;
 	IMFMediaSink* pVideoSink;
 	IMFStreamSink* pStreamSink;
@@ -94,8 +102,9 @@ private:
 	IMF2DBuffer* p2DBuffer;
 	RECT rc;
 	BOOL fSelected;
-	BYTE* bitmapBuffer;
-
+	std::vector<uint8_t> intermediateByteBuffer;
+	std::vector<uint8_t> renderBuffer;
+	std::vector<uint16_t> intermediateWORDBuffer;
 	IMFMediaEventGenerator* pEventGenerator;
 	IMFMediaEventGenerator* pstreamSinkEventGenerator;
 	MediaEventHandler mediaEvtHandler;

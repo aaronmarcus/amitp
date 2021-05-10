@@ -6,7 +6,7 @@
 #include <cstddef>
 
 //TODO refactor CHECK_HR to CheckHR
-#define CHECK_HR(hr, msg) if (hr != S_OK) { OutputDebugStringW(msg); goto done; }
+#define CHECK_HR(hr, msg) if (hr != S_OK) { printf(msg); printf(" Error: %.2X.\n", hr); goto done; }
 
 //TODO refactor SAFE_RELEASE too SafeRelease
 template <class T> void SAFE_RELEASE(T * *ppT)

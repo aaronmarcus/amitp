@@ -5,6 +5,8 @@
 
 #include <Windows.h>
 
+HWND hwnd_;
+
 template <class DERIVED_TYPE>
 class BaseWindow
 {
@@ -43,8 +45,8 @@ public:
         DWORD dwExStyle = 0,
         int x = CW_USEDEFAULT,
         int y = CW_USEDEFAULT,
-        int nWidth = CW_USEDEFAULT,
-        int nHeight = CW_USEDEFAULT,
+        int nWidth = 1280,
+        int nHeight = 720,
         HWND hWndParent = 0,
         HMENU hMenu = 0
     )
