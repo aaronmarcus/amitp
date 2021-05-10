@@ -2,6 +2,7 @@
 
 #include <bitset>
 
+//JRTPLIB check for RTP errors, and display them to console
 void checkRTPSessError(int rtperr)
 {
 	if (rtperr < 0)
@@ -11,35 +12,18 @@ void checkRTPSessError(int rtperr)
 	}
 }
 
-void PrintArrayAsBinary(const uint16_t* twoByteArray, size_t len)
+//function to get the Image stride for the provided types
+//returns to stride to pointer of plStride when given the width, height and type
+HRESULT GetDefaultStride(IMFMediaType* pType, LONG* plStride, UINT32 width, UINT32 height)
 {
-	std::cout << "{\n";
-	for (size_t i = 0; i < len; i++)
-	{
-		std::cout << std::bitset<16>(twoByteArray[i]);
-		if (i < len - 1)
-		{
-			std::cout << ",";
-		}
-		std::cout << std::endl;
-	}
-	std::cout << "}\n";
-}
-
-HRESULT GetDefaultStride(IMFMediaType* pType, LONG* plStride)
-{
-	LONG lStride = 0;
+	LONG lStride = 0; //temporary stride holder
 
 	// Try to get the default stride from the media type.
 	HRESULT hr = pType->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32*)&lStride);
 	if (FAILED(hr))
 	{
 		// Attribute not set. Try to calculate the default stride.
-
 		GUID subtype = GUID_NULL;
-
-		UINT32 width = 0;
-		UINT32 height = 0;
 
 		// Get the subtype and the image size.
 		hr = pType->GetGUID(MF_MT_SUBTYPE, &subtype);
@@ -48,12 +32,14 @@ HRESULT GetDefaultStride(IMFMediaType* pType, LONG* plStride)
 			goto done;
 		}
 
+		//get the size of the image from the type, width and height
 		hr = MFGetAttributeSize(pType, MF_MT_FRAME_SIZE, &width, &height);
 		if (FAILED(hr))
 		{
 			goto done;
 		}
 
+		//get the calculated stride
 		hr = MFGetStrideForBitmapInfoHeader(subtype.Data1, width, &lStride);
 		if (FAILED(hr))
 		{
@@ -66,12 +52,14 @@ HRESULT GetDefaultStride(IMFMediaType* pType, LONG* plStride)
 
 	if (SUCCEEDED(hr))
 	{
-		*plStride = lStride;
+		*plStride = lStride; //set the stride result onto the variable
 	}
 
 done:
 	return hr;
 }
+
+//function to create a video type for uncompressed video
 HRESULT CreateUncompressedVideoType(
 	DWORD                fccFormat,  // FOURCC or D3DFORMAT value.     
 	UINT32               width,
@@ -82,57 +70,65 @@ HRESULT CreateUncompressedVideoType(
 	IMFMediaType** ppType
 )
 {
-	if (ppType == NULL)
+	if (ppType == NULL) //check to see if a type pointer has been set
 	{
 		return E_POINTER;
 	}
 
+	//set placeholders
 	GUID    subtype = MFVideoFormat_Base;
 	LONG    lStride = 0;
 	UINT32    cbImage = 0;
 
+	//create temporary type holder
 	IMFMediaType* pType = NULL;
 
 	// Set the subtype GUID from the FOURCC or D3DFORMAT value.
 	subtype.Data1 = fccFormat;
 
+	//create a media type on the temporary type holder
 	HRESULT hr = MFCreateMediaType(&pType);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
+	//set the major type to video
 	hr = pType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
+	//set the subtype to the specified type
 	hr = pType->SetGUID(MF_MT_SUBTYPE, subtype);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
+	//set the interlace mode
 	hr = pType->SetUINT32(MF_MT_INTERLACE_MODE, interlaceMode);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
+	//set the frame size
 	hr = MFSetAttributeSize(pType, MF_MT_FRAME_SIZE, width, height);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
-	
-	hr = GetDefaultStride(pType, &lStride);
+	//get the image stride
+	hr = GetDefaultStride(pType, &lStride, width, height);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
-	
+
+	//set the image stride
 	hr = pType->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(lStride));
 	if (FAILED(hr))
 	{
@@ -146,32 +142,35 @@ HRESULT CreateUncompressedVideoType(
 		goto done;
 	}
 
+	//set the size
 	hr = pType->SetUINT32(MF_MT_SAMPLE_SIZE, cbImage);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
+	//set fixed size samples to true
 	hr = pType->SetUINT32(MF_MT_FIXED_SIZE_SAMPLES, TRUE);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
+	//set all samples independent to true
 	hr = pType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
-	// Frame rate
+	// set the frame rate
 	hr = MFSetAttributeRatio(pType, MF_MT_FRAME_RATE, frameRate.Numerator, frameRate.Denominator);
 	if (FAILED(hr))
 	{
 		goto done;
 	}
 
-	// Pixel aspect ratio
+	// set the Pixel aspect ratio
 	hr = MFSetAttributeRatio(pType, MF_MT_PIXEL_ASPECT_RATIO, par.Numerator, par.Denominator);
 	if (FAILED(hr))
 	{
@@ -183,21 +182,20 @@ HRESULT CreateUncompressedVideoType(
 	(*ppType)->AddRef();
 
 done:
-	SAFE_RELEASE(&pType);
+	SAFE_RELEASE(&pType); //release the temporary type holder
 	return hr;
 }
 
 //Renderer Constructor
 Renderer::Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __int32 bitDepth, HWND hwnd) : RTPSession(), BufferQueues(2321280)
 {
-	//move all to initialisation list so its not written twice https://stackoverflow.com/questions/6822422/c-where-to-initialize-variables-in-constructor
+	//initial the needed variables and objects
+	//TODO move all to initialisation list so its not written twice https://stackoverflow.com/questions/6822422/c-where-to-initialize-variables-in-constructor
     sourceFormat.width = width;
     sourceFormat.height = height;
     sourceFormat.bitDepth = bitDepth;
 	
     m_hwnd = hwnd;
-
-	//intermediateByteBuffer.resize(2321280);
 
 	pVideoOutType = NULL;
 	pVideoSink = NULL;
@@ -223,29 +221,36 @@ Renderer::Renderer(unsigned __int32 width, unsigned __int32 height, unsigned __i
 	streamSinkMediaEvtHandler;
 }
 
+//function to start receiving RTP packets, given the port
 void Renderer::startRTPReceiver(uint16_t port)
 {
+	//set tracking variables
 	firstMarker = true;
 	lastPacketHadMarker = false;
-	WSAStartup(MAKEWORD(2, 2), &dat);
+	WSAStartup(MAKEWORD(2, 2), &dat); //start winsock2
 
+	//set the RTP session paramaters
 	sessparams.SetOwnTimestampUnit(1.0 / 8000.);
 	transparams.SetPortbase(portbase);
-	transparams.SetRTPReceiveBuffer(5400000);
-	SetMaximumPacketSize(1500);
+	transparams.SetRTPReceiveBuffer(5400000); //make the buffer bigger for video 
+	SetMaximumPacketSize(1500); //define the max packet size for efficient use of memory
 	
-	status = Create(sessparams, &transparams);
-	checkRTPSessError(status);
+	status = Create(sessparams, &transparams); //create the session
+	checkRTPSessError(status); //check for errors
 }
 
+//function to stop receiving RTP packets
 void Renderer::stopRTPReceiver()
 {
+	//quit RTPLIB
 	BYEDestroy(jrtplib::RTPTime(10, 0), 0, 0);
-	WSACleanup();
+	WSACleanup(); //release the winsock2 objects
 }
 
+//function to start rendering
 void Renderer::startRenderer()
 {
+	//set up needed variables
 	stopRTPReceiver();
 	DWORD sinkMediaTypeCount = 0;
 	size_t renderBufferLength = 3686400;
@@ -255,7 +260,8 @@ void Renderer::startRenderer()
 	uint32_t stride = 0;
 	MFRatio fps = {30,1}, par = {1,1};
 	IMFMediaType* supported;
-	
+
+	//start up Media Foundation
 	CHECK_HR(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE),
 		"COM initialisation failed.");
 
@@ -301,22 +307,10 @@ void Renderer::startRenderer()
 	CHECK_HR(pSinkMediaTypeHandler->GetMediaTypeCount(&sinkMediaTypeCount),
 		"Failed to get sink media type count.");
 
-	std::cout << "Sink media type count: " << sinkMediaTypeCount << "." << std::endl;
-
 	// ----- Create the EVR compatible media type and set on the stream sink. -----
 
 	// Set the video input type on the EVR sink.
-	/*CHECK_HR(MFCreateMediaType(&pVideoOutType), "Failed to create video output media type.");
-	CHECK_HR(pVideoOutType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video), "Failed to set video output media major type.");
-	CHECK_HR(pVideoOutType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_Y210), "Failed to set video sub-type attribute on media type.");
-	CHECK_HR(pVideoOutType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive), "Failed to set interlace mode attribute on media type.");
-	CHECK_HR(pVideoOutType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE), "Failed to set independent samples attribute on media type.");
-	CHECK_HR(MFSetAttributeRatio(pVideoOutType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1), "Failed to set pixel aspect ratio attribute on media type.");
-	CHECK_HR(MFSetAttributeSize(pVideoOutType, MF_MT_FRAME_SIZE, sourceFormat.width, sourceFormat.height), "Failed to set the frame size attribute on media type.");*/
-
-	CHECK_HR(CreateUncompressedVideoType('YVYU', sourceFormat.width, sourceFormat.height, MFVideoInterlace_Progressive, fps, par, &pVideoOutType), "Failed to create uncompressed video type");
-	//std::cout << "EVR input media type defined as:" << std::endl;
-	//std::cout << GetMediaTypeDescription(pVideoOutType) << std::endl << std::endl;
+	CHECK_HR(CreateUncompressedVideoType('2YUY', sourceFormat.width, sourceFormat.height, MFVideoInterlace_Progressive, fps, par, &pVideoOutType), "Failed to create uncompressed video type");
 
 	CHECK_HR(pSinkMediaTypeHandler->IsMediaTypeSupported(pVideoOutType, &supported), "Media Type not supported");
 
@@ -347,7 +341,7 @@ void Renderer::startRenderer()
 	CHECK_HR(pD3DVideoSample->GetBufferByIndex(0, &pDstBuffer), "Failed to get destination buffer.");
 	CHECK_HR(pDstBuffer->QueryInterface(IID_PPV_ARGS(&p2DBuffer)), "Failed to get pointer to 2D buffer.");
 
-	// Get clocks organised.
+	// Get Presentation clocks organised.
 	CHECK_HR(MFCreatePresentationClock(&pClock), "Failed to create presentation clock.");
 	CHECK_HR(MFCreateSystemTimeSource(&pTimeSource), "Failed to create system time source.");
 	CHECK_HR(pClock->SetTimeSource(pTimeSource), "Failed to set time source.");
@@ -355,34 +349,32 @@ void Renderer::startRenderer()
 	CHECK_HR(pClock->Start(0), "Error starting presentation clock.");
 	
 
-	//starting writing frame to buffer
-		//iterate through the frameBuffer and copy to the render buffer
-	
+	//iterate through the frameBuffer and copy to the render buffer
 	{
-		size_t transfered = 0;
-		std::unique_lock<std::mutex> lock(m);
-		intermediateByteBuffer.resize(frameQueue.begin()->currentLength);
-		std::cout << frameQueue.begin()->currentLength << std::endl;
-		//intermediateByteBuffer.resize(frameQueue.begin()->currentLength); //3686400
+		size_t transfered = 0; //create data tracker
+		std::unique_lock<std::mutex> lock(m); //lock access to the frame buffer
+		intermediateByteBuffer.resize(frameQueue.begin()->currentLength); //resize the buffer
+
+		//copy all data from the RTP receiver to the frame queue
 		for (int i = 0; i < frameQueue.begin()->frameData.size(); i++)
 		{
 			memcpy(&intermediateByteBuffer[transfered], frameQueue.begin()->frameData[i].payload.data(), frameQueue.begin()->frameData[i].payloadLength);
 			transfered += frameQueue.begin()->frameData[i].payloadLength;
 		}
-	//todo combine this with the first loop
+		
 		//extract the 10 bit values into WORDs with padding //todo optimise the loops
 		int x = 0;
 		for (int i = 0; i < intermediateByteBuffer.size(); i += 5)
 		{
 			intermediateWORDBuffer.resize(intermediateWORDBuffer.size()+4);
-			intermediateWORDBuffer[0 + x] = (((uint16_t)intermediateByteBuffer[0 + i] & 0b11111111u) << (0 + 8)) | (((uint16_t)intermediateByteBuffer[1 + i] & 0b11000000u) << 0);
-			intermediateWORDBuffer[1 + x] = (((uint16_t)intermediateByteBuffer[1 + i] & 0b00111111u) << (2 + 8)) | (((uint16_t)intermediateByteBuffer[2 + i] & 0b11110000u) << 2);
-			intermediateWORDBuffer[2 + x] = (((uint16_t)intermediateByteBuffer[2 + i] & 0b00001111u) << (4 + 8)) | (((uint16_t)intermediateByteBuffer[3 + i] & 0b11111100u) << 4);
-			intermediateWORDBuffer[3 + x] = (((uint16_t)intermediateByteBuffer[3 + i] & 0b00000011u) << (6 + 8)) | (((uint16_t)intermediateByteBuffer[4 + i] & 0b11111111u) << 6);
+			intermediateWORDBuffer[1 + x] = (((uint16_t)intermediateByteBuffer[0 + i] & 0b11111111u) << (0 + 8)) | (((uint16_t)intermediateByteBuffer[1 + i] & 0b11000000u) << 0);
+			intermediateWORDBuffer[0 + x] = (((uint16_t)intermediateByteBuffer[1 + i] & 0b00111111u) << (2 + 8)) | (((uint16_t)intermediateByteBuffer[2 + i] & 0b11110000u) << 2);
+			intermediateWORDBuffer[3 + x] = (((uint16_t)intermediateByteBuffer[2 + i] & 0b00001111u) << (4 + 8)) | (((uint16_t)intermediateByteBuffer[3 + i] & 0b11111100u) << 4);
+			intermediateWORDBuffer[2 + x] = (((uint16_t)intermediateByteBuffer[3 + i] & 0b00000011u) << (6 + 8)) | (((uint16_t)intermediateByteBuffer[4 + i] & 0b11111111u) << 6);
 			x += 4;
 		}
-		renderBuffer.resize(intermediateWORDBuffer.size());
-		//convert 10bits to 8 bits //TODO optimise the loops
+		renderBuffer.resize(intermediateWORDBuffer.size()); //resize the render buffer
+		//convert 10 bits (16 with padding) to 8 bits //TODO optimise the loops
 		for (int i = 0; i < intermediateWORDBuffer.size(); i += 8)
 		{
 			renderBuffer[i + 0] = (intermediateWORDBuffer[i + 0] >> 8);
@@ -395,27 +387,16 @@ void Renderer::startRenderer()
 			renderBuffer[i + 7] = (intermediateWORDBuffer[i + 7] >> 8);
 		}
 	};
+	//set the sample time and duration for each frame
 	CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
 	CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
-	CHECK_HR(p2DBuffer->ContiguousCopyFrom(renderBuffer.data(), renderBuffer.size()), "Failed to copy frame to D2D buffer.");
+	//move the data to the renderer and process the sample
+	CHECK_HR(p2DBuffer->ContiguousCopyFrom((BYTE*) renderBuffer.data(), renderBuffer.size()), "Failed to copy frame to D2D buffer.");
 	CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
-	/*while (true)
-	{
-		llTimeStamp+=333333;
-		std::this_thread::sleep_for(std::chrono::milliseconds(20));
-		CHECK_HR(pD3DVideoSample->SetSampleTime(llTimeStamp), "Failed to set D3D video sample time.");
-		CHECK_HR(pD3DVideoSample->SetSampleDuration(sampleDuration), "Failed to set D3D video sample duration.");
-		CHECK_HR(p2DBuffer->ContiguousCopyFrom((BYTE*)renderBuffer.data(), renderBuffer.size() * 2), "Failed to copy frame to D2D buffer.");
-		CHECK_HR(pStreamSink->ProcessSample(pD3DVideoSample), "Stream sink process sample failed.");
-		std::cout << "Processed" << std::endl;
-	};*/
 
 done:
 
-	printf("finished.\n");
-	auto c = getchar();
-
-	//delete[] bitmapBuffer;
+	//release all the resources
 	SAFE_RELEASE(p2DBuffer);
 	SAFE_RELEASE(pDstBuffer);
 	SAFE_RELEASE(pVideoOutType);
@@ -438,7 +419,7 @@ done:
 	return;
 }
 
-
+//threading function for the RTP receiver
 void Renderer::OnPollThreadStep()
 {
 	BeginDataAccess();
@@ -453,7 +434,7 @@ void Renderer::OnPollThreadStep()
 			while ((pack = GetNextPacket()) != NULL)
 			{
 				ProcessRTPPacket(*pack);
-				DeletePacket(pack);
+				DeletePacket(pack); //delete the memory once the packet has been proccessed
 			}
 			
 		} while (GotoNextSourceWithData());
@@ -462,27 +443,29 @@ void Renderer::OnPollThreadStep()
 	EndDataAccess();
 }
 
+//function to process the received packet
 void Renderer::ProcessRTPPacket(const jrtplib::RTPPacket& rtppack)
 {
-	if (firstMarker)
+	if (firstMarker) //check to see if we have receieved the first packet marker
 	{
-		if (rtppack.HasMarker()) 
+		if (rtppack.HasMarker()) //if received the first marker
 		{
-			addFrame(0);
+			addFrame(0); //add a frame to the frame queue
 			firstMarker = false;
 			goto done;
 		}
 		else { goto done; }
 	} else
 	{
-		if (lastPacketHadMarker)
+		if (lastPacketHadMarker) //if this is a new frame
 		{
-			addFrame(rtppack.GetTimestamp());
+			addFrame(rtppack.GetTimestamp()); //add frame to the frame queue
 			lastPacketHadMarker = false;
 		}
 	}
+	//add the payload to the frame data queue
 	addPayload(rtppack.GetPayloadData(), rtppack.GetPayloadLength(), rtppack.GetTimestamp(), rtppack.GetExtendedSequenceNumber());
-	if (rtppack.HasMarker()) { lastPacketHadMarker = true; }
+	if (rtppack.HasMarker()) { lastPacketHadMarker = true; } //if packet has marker then track it
 done: return;
 }
 
